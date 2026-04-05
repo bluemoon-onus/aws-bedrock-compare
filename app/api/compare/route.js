@@ -2,6 +2,7 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 const client = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || "us-east-1",
@@ -9,6 +10,10 @@ const client = new BedrockRuntimeClient({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
+  requestHandler: new NodeHttpHandler({
+    connectionTimeout: 5000,
+    socketTimeout: 9000,
+  }),
 });
 
 const MODELS = [
