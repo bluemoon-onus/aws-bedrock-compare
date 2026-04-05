@@ -27,31 +27,26 @@ export default function Home() {
     setLoading(newLoading);
     setResults(newResults);
 
-    const res = await fetch("/api/compare", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt.trim() }),
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const result = JSON.parse(line);
-        setResults((prev) => ({ ...prev, [result.modelId]: result }));
-        setLoading((prev) => ({ ...prev, [result.modelId]: false }));
-      }
-    }
+    await Promise.all(
+      MODELS.map(async (m) => {
+        try {
+          const res = await fetch("/api/compare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: prompt.trim(), modelId: m.id }),
+          });
+          const result = await res.json();
+          setResults((prev) => ({ ...prev, [m.id]: result }));
+        } catch (err) {
+          setResults((prev) => ({
+            ...prev,
+            [m.id]: { modelId: m.id, error: err.message, time: null },
+          }));
+        } finally {
+          setLoading((prev) => ({ ...prev, [m.id]: false }));
+        }
+      })
+    );
   }
 
   return (

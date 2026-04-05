@@ -62,7 +62,18 @@ function parseResponse(provider, result) {
   }
 }
 
-async function invokeModel(model, prompt) {
+export async function POST(request) {
+  const { prompt, modelId } = await request.json();
+
+  if (!prompt || typeof prompt !== "string") {
+    return Response.json({ error: "prompt is required" }, { status: 400 });
+  }
+
+  const model = MODELS.find((m) => m.id === modelId);
+  if (!model) {
+    return Response.json({ error: "invalid modelId" }, { status: 400 });
+  }
+
   const start = Date.now();
   const body = buildRequestBody(model.provider, prompt);
 
@@ -78,45 +89,5 @@ async function invokeModel(model, prompt) {
   const text = parseResponse(model.provider, result);
   const time = Date.now() - start;
 
-  return { modelId: model.id, text, time };
-}
-
-export const maxDuration = 60;
-
-export async function POST(request) {
-  const { prompt } = await request.json();
-
-  if (!prompt || typeof prompt !== "string") {
-    return Response.json({ error: "prompt is required" }, { status: 400 });
-  }
-
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      await Promise.all(
-        MODELS.map(async (model) => {
-          try {
-            const result = await invokeModel(model, prompt);
-            controller.enqueue(encoder.encode(JSON.stringify(result) + "\n"));
-          } catch (err) {
-            controller.enqueue(
-              encoder.encode(
-                JSON.stringify({
-                  modelId: model.id,
-                  error: err.message || "Unknown error",
-                  time: null,
-                }) + "\n"
-              )
-            );
-          }
-        })
-      );
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson" },
-  });
+  return Response.json({ modelId: model.id, text, time });
 }
