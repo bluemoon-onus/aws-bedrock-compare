@@ -33,20 +33,25 @@ export default function Home() {
       body: JSON.stringify({ prompt: prompt.trim() }),
     });
 
-    const data = await res.json();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    const finalResults = {};
-    const finalLoading = {};
-    MODELS.forEach((m) => {
-      const modelResult = data.results.find((r) => r.modelId === m.id);
-      if (modelResult) {
-        finalResults[m.id] = modelResult;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const result = JSON.parse(line);
+        setResults((prev) => ({ ...prev, [result.modelId]: result }));
+        setLoading((prev) => ({ ...prev, [result.modelId]: false }));
       }
-      finalLoading[m.id] = false;
-    });
-
-    setResults(finalResults);
-    setLoading(finalLoading);
+    }
   }
 
   return (

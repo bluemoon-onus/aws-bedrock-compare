@@ -81,6 +81,8 @@ async function invokeModel(model, prompt) {
   return { modelId: model.id, text, time };
 }
 
+export const maxDuration = 60;
+
 export async function POST(request) {
   const { prompt } = await request.json();
 
@@ -88,20 +90,33 @@ export async function POST(request) {
     return Response.json({ error: "prompt is required" }, { status: 400 });
   }
 
-  const settled = await Promise.allSettled(
-    MODELS.map((model) => invokeModel(model, prompt))
-  );
+  const encoder = new TextEncoder();
 
-  const results = settled.map((outcome, i) => {
-    if (outcome.status === "fulfilled") {
-      return outcome.value;
-    }
-    return {
-      modelId: MODELS[i].id,
-      error: outcome.reason?.message || "Unknown error",
-      time: null,
-    };
+  const stream = new ReadableStream({
+    async start(controller) {
+      await Promise.all(
+        MODELS.map(async (model) => {
+          try {
+            const result = await invokeModel(model, prompt);
+            controller.enqueue(encoder.encode(JSON.stringify(result) + "\n"));
+          } catch (err) {
+            controller.enqueue(
+              encoder.encode(
+                JSON.stringify({
+                  modelId: model.id,
+                  error: err.message || "Unknown error",
+                  time: null,
+                }) + "\n"
+              )
+            );
+          }
+        })
+      );
+      controller.close();
+    },
   });
 
-  return Response.json({ results });
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson" },
+  });
 }
