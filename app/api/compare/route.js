@@ -63,31 +63,42 @@ function parseResponse(provider, result) {
 }
 
 export async function POST(request) {
-  const { prompt, modelId } = await request.json();
+  let modelId;
+  try {
+    const body = await request.json();
+    const { prompt } = body;
+    modelId = body.modelId;
 
-  if (!prompt || typeof prompt !== "string") {
-    return Response.json({ error: "prompt is required" }, { status: 400 });
+    if (!prompt || typeof prompt !== "string") {
+      return Response.json({ modelId, error: "prompt is required" }, { status: 400 });
+    }
+
+    const model = MODELS.find((m) => m.id === modelId);
+    if (!model) {
+      return Response.json({ modelId, error: "invalid modelId" }, { status: 400 });
+    }
+
+    const start = Date.now();
+    const reqBody = buildRequestBody(model.provider, prompt);
+
+    const command = new InvokeModelCommand({
+      modelId: model.id,
+      contentType: "application/json",
+      accept: "application/json",
+      body: JSON.stringify(reqBody),
+    });
+
+    const response = await client.send(command);
+    const result = JSON.parse(new TextDecoder().decode(response.body));
+    const text = parseResponse(model.provider, result);
+    const time = Date.now() - start;
+
+    return Response.json({ modelId: model.id, text, time });
+  } catch (err) {
+    return Response.json({
+      modelId: modelId ?? null,
+      error: err.message || "Unknown error",
+      time: null,
+    });
   }
-
-  const model = MODELS.find((m) => m.id === modelId);
-  if (!model) {
-    return Response.json({ error: "invalid modelId" }, { status: 400 });
-  }
-
-  const start = Date.now();
-  const body = buildRequestBody(model.provider, prompt);
-
-  const command = new InvokeModelCommand({
-    modelId: model.id,
-    contentType: "application/json",
-    accept: "application/json",
-    body: JSON.stringify(body),
-  });
-
-  const response = await client.send(command);
-  const result = JSON.parse(new TextDecoder().decode(response.body));
-  const text = parseResponse(model.provider, result);
-  const time = Date.now() - start;
-
-  return Response.json({ modelId: model.id, text, time });
 }
