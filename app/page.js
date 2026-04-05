@@ -60,6 +60,7 @@ export default function Home() {
         </h1>
         <p className="mt-3 text-base text-zinc-400 bg-zinc-800/50 border border-zinc-700 rounded-md px-4 py-2.5 inline-block">
           ⚠ Results may vary due to prompt phrasing, network conditions, and other factors. Do not use as an absolute benchmark.
+          {" "}Responses exceeding 10s will time out (serverless limit).
         </p>
       </div>
 
